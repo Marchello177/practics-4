@@ -1,69 +1,66 @@
 #!/bin/bash
-
-# Функция для вывода справки
+# Функция для вывода справки по использованию скрипта
 show_help() {
-    echo "Использование: $0 [опции]"
-    echo
-    echo "Опции:"
     echo "  -u, --users       Вывести перечень пользователей и их домашних директорий"
     echo "  -p, --processes   Вывести перечень запущенных процессов"
     echo "  -h, --help        Вывести справку"
     echo "  -l PATH, --log PATH   Перенаправить вывод в файл по заданному пути"
     echo "  -e PATH, --errors PATH Перенаправить вывод ошибок в файл по заданному пути"
-}
+} 
 
 # Функция для вывода пользователей и их домашних директорий
 list_users() {
-    if [[ $EUID -ne 0 ]]; then
-        echo "Ошибка: Для просмотра пользователей требуется права суперпользователя." >&2
-        exit 1
-    fi
-
+    # Если указан файл для логирования, перенаправляем вывод в этот файл
     if [[ -n "$log_file" ]]; then
         exec > "$log_file"
     fi
 
+    # Читаем файл /etc/passwd построчно, извлекаем имя пользователя и домашнюю директорию
     while IFS=: read -r username home_dir; do
+        # Проверяем, что имя пользователя и домашняя директория не пустые
         if [[ -n "$username" && -n "$home_dir" ]]; then
-            echo "$username $home_dir"
+            echo "$username $home_dir"  # Выводим имя пользователя и домашнюю директорию
         fi
-    done < /etc/passwd | sort
+    done < /etc/passwd | sort  # Сортируем вывод
 }
 
 # Функция для вывода запущенных процессов
 list_processes() {
+    # Если указан файл для логирования, перенаправляем вывод в этот файл
     if [[ -n "$log_file" ]]; then
         exec > "$log_file"
     fi
 
+    # Выводим список всех запущенных процессов с их PID и командой
     ps -e --format pid,cmd --sort pid
 }
 
-# Основная часть программы
+# Инициализация переменных для хранения путей к файлам логов и ошибок
 log_file=""
 error_file=""
 
-while getopts ":uphle:-:" opt; do
+# Обработка аргументов командной строки с помощью getopts
+while getopts ":uphl:e:-:" opt; do
     case $opt in
-        u)
+        u)  # Если указана опция -u, вызываем функцию list_users
             list_users
             exit 0
             ;;
-        p)
+        p)  # Если указана опция -p, вызываем функцию list_processes
             list_processes
             exit 0
             ;;
-        h)
+        h)  # Если указана опция -h, выводим справку
             show_help
             exit 0
             ;;
-        l)
+        l)  # Если указана опция -l, сохраняем путь к файлу лога
             log_file="$OPTARG"
             ;;
-        e)
+        e)  # Если указана опция -e, сохраняем путь к файлу ошибок
             error_file="$OPTARG"
             ;;
-        -)
+        -)  # Обработка длинных опций (например, --users)
             case "${OPTARG}" in
                 users)
                     list_users
@@ -78,24 +75,24 @@ while getopts ":uphle:-:" opt; do
                     exit 0
                     ;;
                 log)
-                    log_file="${!OPTIND}"; OPTIND=$((OPTIND + 1))
+                    log_file="${!OPTIND}"; OPTIND=$((OPTIND + 1))  # Сохраняем путь к файлу лога для длинной опции
                     ;;
                 errors)
-                    error_file="${!OPTIND}"; OPTIND=$((OPTIND + 1))
+                    error_file="${!OPTIND}"; OPTIND=$((OPTIND + 1))  # Сохраняем путь к файлу ошибок для длинной опции
                     ;;
                 *)
-                    echo "Неверный аргумент: --${OPTARG}" >&2
+                    echo "Неверный аргумент: --${OPTARG}" >&2  # Обработка неверных аргументов
                     show_help >&2
                     exit 1
                     ;;
             esac
             ;;
-        \?)
+        ?) # Обработка неверного однобуквенного аргумента
             echo "Неверный аргумент: -$OPTARG" >&2
             show_help >&2
             exit 1
             ;;
-        :)
+        :)  # Обработка отсутствующего аргумента для однобуквенного аргумента
             echo "Аргумент для -$OPTARG отсутствует." >&2
             show_help >&2
             exit 1
@@ -103,12 +100,12 @@ while getopts ":uphle:-:" opt; do
     esac
 done
 
-# Обработка перенаправления ошибок, если указано
-if [[ -n "$error_file" ]]; then
-    exec 2> "$error_file"
-fi
 
-# Если не переданы аргументы, выводим справку
+if [[ -n "$error_file" ]]; then
+    exec 2> "$error_file"  
+fi
+trap "echo 'Ошибка'>&2" DEBUG  
+
 if [[ -z "$log_file" && -z "$error_file" ]]; then
     show_help
 fi
